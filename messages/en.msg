@@ -36,4 +36,4 @@ Overwrite: Overwrite existing file
 InvalidPageName: Invalid page name
 FileExists: A file by that name exists in the wiki -- check Overwrite to overwrite
 FileUnchanged: The file matches the version already in the repository.
-
+ServerError: An error occurred.

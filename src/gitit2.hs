@@ -1,21 +1,29 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses, TypeFamilies,
-    OverloadedStrings #-}
+    OverloadedStrings, NamedFieldPuns #-}
 import Network.Gitit2
 import Yesod
 import Yesod.Static
 import Yesod.Auth
-import Yesod.Auth.Dummy
+import Yesod.Auth.OAuth2 (authOAuth2)
+import Yesod.Auth.OAuth2.Provider (ClientId(..), ClientSecret(..))
+import Yesod.Auth.Message (AuthMessage(..))
+import Network.Gitit2.Authentication.GitHub (defaultScopes, oauth2GitHubUsingLogin, orgScopes)
 import Network.Wai.Handler.Warp
 import Data.FileStore
 import Text.Pandoc
 import qualified Text.Pandoc.UTF8 as UTF8
 import System.FilePath ((<.>), (</>))
-import Control.Monad (when, unless)
+import Control.Monad (when, unless, join)
 import System.Directory (removeDirectoryRecursive, doesDirectoryExist)
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text as T
 import Paths_gitit2 (getDataFileName)
 import qualified Network.HTTP.Conduit as HC
+import Data.Maybe (catMaybes, isJust, fromJust)
+import GitHub (executeRequestWithMgr, isMemberOfR, mkUserName, mkOrganizationName)
+import qualified GitHub
+
 -- TODO only for samplePlugin
 import Data.Generics
 
@@ -24,6 +32,7 @@ import Error
 import ArgParser
 
 import Network.Gitit2.WikiPage (PageFormat(..), wpContent)
+
 
 data Master = Master { settings :: FoundationSettings
                      , getGitit    :: Gitit
@@ -76,12 +85,32 @@ instance Yesod Master where
 
 instance YesodAuth Master where
   type AuthId Master = Text
-  getAuthId = return . Just . credsIdent
+
+  authenticate creds = do
+      mr <- getMessageRender
+      case credsPlugin creds of
+          "github" -> do
+              conf <- config . getGitit <$> getYesod
+              let username = credsIdent creds
+                  org = join $ gocOrganization <$> github_oauth conf
+              maybe (return $ Authenticated username) (checkOrg username) org
+          _ -> return . ServerError $ mr MsgServerError
+    where checkOrg username org = do
+              let token = GitHub.OAuth . encodeUtf8 $ fromJust $ lookup "accessToken" (credsExtra creds)
+              mgr <- authHttpManager <$> getYesod
+              orgCheck <- liftIO . executeRequestWithMgr mgr token $ isMemberOfR (mkUserName username) (mkOrganizationName org)
+              return $ either (ServerError . T.pack . show)
+                              (\inOrg -> if inOrg then Authenticated username else UserError InvalidLogin)
+                              orgCheck
 
   loginDest _ = RootR
   logoutDest _ = RootR
 
-  authPlugins _ = [ authDummy ]
+  authPlugins g = catMaybes [gitHub <$> mbGitHubConf]
+    where mbGitHubConf = github_oauth . config $ getGitit g
+          gitHub GitHubOAuthConfig {gocClientId, gocClientSecret, gocOrganization} =
+               authOAuth2 (gitHubProvider gocOrganization) (ClientId gocClientId) (ClientSecret gocClientSecret)
+          gitHubProvider org = oauth2GitHubUsingLogin (if isJust org then orgScopes else defaultScopes)
 
   maybeAuthId = lookupSession "_ID"
 

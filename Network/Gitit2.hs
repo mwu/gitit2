@@ -4,6 +4,7 @@
              ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.Gitit2 ( GititConfig (..)
+                      , GitHubOAuthConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
                       , readPageFormat

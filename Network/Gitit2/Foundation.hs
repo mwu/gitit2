@@ -1,10 +1,11 @@
-{-# LANGUAGE FlexibleInstances, ViewPatterns #-}
+{-# LANGUAGE FlexibleInstances, ViewPatterns, DeriveGeneric #-}
 
 module Network.Gitit2.Foundation where
 
 import Data.FileStore (FileStore, RevisionId)
 import qualified Data.Map as M
 import Data.Text (Text)
+import Data.Aeson (withObject, (.:), (.:?))
 import Text.Blaze.Html hiding (contents)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
@@ -64,7 +65,23 @@ data GititConfig = GititConfig{
      , front_page       :: Text                     -- ^ Front page of wiki
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
+     , github_oauth     :: Maybe GitHubOAuthConfig
      }
+
+data GitHubOAuthConfig = GitHubOAuthConfig { gocClientId     :: Text
+                                           , gocClientSecret :: Text
+                                           , gocOrganization :: Maybe Text
+                                           }
+
+instance FromJSON GitHubOAuthConfig where
+  parseJSON = withObject "github_oauth" $ \o -> do
+    clientId     <- o .:  "client_id"
+    clientSecret <- o .:  "client_secret"
+    organization <- o .:? "organization"
+
+    return GitHubOAuthConfig { gocClientId     = clientId
+                             , gocClientSecret = clientSecret
+                             , gocOrganization = organization }
 
 -- | A user.
 data GititUser = GititUser{ gititUserName  :: String

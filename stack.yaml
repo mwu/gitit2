@@ -11,4 +11,9 @@ extra-deps:
 - tasty-quickcheck-0.9.1
 - doctemplates-0.2.1
 - haddock-library-1.4.3
+- git: https://github.com/thoughtbot/yesod-auth-oauth2.git
+  commit: b1181298ba4fc25dcb3a5e6b11f1188986f131a4
+- git: git@github.com:phadej/github.git
+  commit: e4bab2ef4d2d10030a0c37c963fc8882fabad847
+
 resolver: lts-9.9
